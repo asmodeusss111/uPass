@@ -25,6 +25,11 @@ from fastapi.templating import Jinja2Templates
 from itsdangerous import URLSafeTimedSerializer, BadSignature
 from pydantic import BaseModel, field_validator
 
+import io
+import pyotp
+import qrcode
+import qrcode.image.svg
+
 import crypto
 import stats as st
 
@@ -49,6 +54,9 @@ TRUST_PROXY          = os.getenv("TRUST_PROXY",   "false").lower() == "true"
 SECURITY_CONTACT     = os.getenv("SECURITY_CONTACT", "mailto:security@example.com")
 # REVEAL_PASSWORD — отдельный пароль для просмотра полных IP в /admin/requests
 REVEAL_PASSWORD      = os.getenv("REVEAL_PASSWORD", "").strip()
+# TOTP_SECRET — base32 ключ для 2FA (генерируй: python -c "import pyotp; print(pyotp.random_base32())")
+TOTP_SECRET          = os.getenv("TOTP_SECRET", "").strip()
+PRE_AUTH_COOKIE      = "upass_pre_auth"
 _tz_name = os.getenv("TZ", "UTC")
 try:
     APP_TZ = ZoneInfo(_tz_name)
@@ -60,6 +68,22 @@ signer = URLSafeTimedSerializer(SECRET_KEY)
 # ── Логирование ───────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 log = logging.getLogger("upass")
+
+# ── QR-код для 2FA (кешируется при первом запросе) ────────────────
+_qr_svg_cache: str = ""
+
+def _get_qr_svg() -> str:
+    global _qr_svg_cache
+    if not _qr_svg_cache and TOTP_SECRET:
+        totp = pyotp.TOTP(TOTP_SECRET)
+        uri  = totp.provisioning_uri(name=ADMIN_USER, issuer_name="uPass Admin")
+        img  = qrcode.make(uri, image_factory=qrcode.image.svg.SvgPathFillImage)
+        buf  = io.BytesIO()
+        img.save(buf)
+        svg  = buf.getvalue().decode()
+        _qr_svg_cache = svg[svg.find("<svg"):]   # убираем XML-декларацию
+    return _qr_svg_cache
+
 
 # ── Rate limiting ─────────────────────────────────────────────────
 _RATE_WINDOW    = 60
@@ -81,6 +105,23 @@ def _check_rate(ip: str) -> None:
         st.record_rate_hit(ip)
         raise HTTPException(status_code=429, detail="Слишком много запросов. Подождите минуту.")
     _rate_store[ip].append(now)
+
+
+# ── 2FA lockout ───────────────────────────────────────────────────
+_2fa_attempts: dict[str, list[float]] = defaultdict(list)
+_2FA_MAX    = 5
+_2FA_WINDOW = 300  # 5 минут
+
+
+def _check_2fa_lockout(ip: str) -> None:
+    now = time.time()
+    _2fa_attempts[ip] = [t for t in _2fa_attempts[ip] if now - t < _2FA_WINDOW]
+    if len(_2fa_attempts[ip]) >= _2FA_MAX:
+        raise HTTPException(status_code=429, detail="Слишком много попыток. Подождите 5 минут.")
+
+
+def _record_2fa_failure(ip: str) -> None:
+    _2fa_attempts[ip].append(time.time())
 
 
 # ── Login lockout ──────────────────────────────────────────────────
@@ -225,6 +266,16 @@ templates.env.filters["ts"] = _fmt_ts
 
 # ── Сессия и доступ ───────────────────────────────────────────────
 
+def _check_pre_auth(request: Request) -> bool:
+    token = request.cookies.get(PRE_AUTH_COOKIE)
+    if not token:
+        return False
+    try:
+        return signer.loads(token, max_age=600) == "pre-auth"
+    except BadSignature:
+        return False
+
+
 def _get_session(request: Request) -> str | None:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
@@ -353,6 +404,12 @@ async def admin_login(request: Request,
     pass_ok = hmac.compare_digest(password, ADMIN_PASS)
     if user_ok and pass_ok:
         _login_attempts.pop(ip, None)   # сбрасываем счётчик неудачных попыток
+        if TOTP_SECRET:
+            pre_token = signer.dumps("pre-auth")
+            resp = RedirectResponse("/admin/2fa", status_code=302)
+            resp.set_cookie(PRE_AUTH_COOKIE, pre_token, httponly=True,
+                            samesite="strict", secure=HTTPS_ONLY, max_age=600)
+            return resp
         token = signer.dumps("admin")
         resp  = RedirectResponse("/admin", status_code=302)
         resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="strict",
@@ -364,6 +421,39 @@ async def admin_login(request: Request,
     return templates.TemplateResponse(request, "login.html", {
         "error":    "Неверный логин или пароль",
         "attempts": remaining_attempts,
+    })
+
+
+@app.get("/admin/2fa", response_class=HTMLResponse)
+async def admin_2fa_page(request: Request) -> HTMLResponse:
+    if not TOTP_SECRET or not _check_pre_auth(request):
+        return RedirectResponse("/admin/login", status_code=302)
+    return templates.TemplateResponse(request, "2fa.html", {
+        "error":       None,
+        "qr_svg":      _get_qr_svg(),
+        "totp_secret": TOTP_SECRET,
+    })
+
+
+@app.post("/admin/2fa", response_class=HTMLResponse)
+async def admin_2fa_verify(request: Request, code: str = Form(...)) -> HTMLResponse:
+    if not TOTP_SECRET or not _check_pre_auth(request):
+        return RedirectResponse("/admin/login", status_code=302)
+    ip = _get_ip(request)
+    _check_2fa_lockout(ip)
+    if pyotp.TOTP(TOTP_SECRET).verify(code.strip(), valid_window=1):
+        token = signer.dumps("admin")
+        resp  = RedirectResponse("/admin", status_code=302)
+        resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="strict",
+                        secure=HTTPS_ONLY, max_age=86400)
+        resp.delete_cookie(PRE_AUTH_COOKIE)
+        return resp
+    _record_2fa_failure(ip)
+    log.warning("failed_2fa  ip=%s", ip)
+    return templates.TemplateResponse(request, "2fa.html", {
+        "error":       "Неверный код",
+        "qr_svg":      _get_qr_svg(),
+        "totp_secret": TOTP_SECRET,
     })
 
 
