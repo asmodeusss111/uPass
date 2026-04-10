@@ -13,6 +13,7 @@ import ipaddress
 from collections import defaultdict
 from pathlib import Path
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import psutil
 from dotenv import load_dotenv
@@ -48,6 +49,11 @@ TRUST_PROXY          = os.getenv("TRUST_PROXY",   "false").lower() == "true"
 SECURITY_CONTACT     = os.getenv("SECURITY_CONTACT", "mailto:security@example.com")
 # REVEAL_PASSWORD — отдельный пароль для просмотра полных IP в /admin/requests
 REVEAL_PASSWORD      = os.getenv("REVEAL_PASSWORD", "").strip()
+_tz_name = os.getenv("TZ", "UTC")
+try:
+    APP_TZ = ZoneInfo(_tz_name)
+except ZoneInfoNotFoundError:
+    APP_TZ = timezone.utc
 
 signer = URLSafeTimedSerializer(SECRET_KEY)
 
@@ -212,7 +218,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 def _fmt_ts(ts: float) -> str:
-    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%H:%M:%S")
+    return datetime.fromtimestamp(ts, tz=APP_TZ).strftime("%H:%M:%S")
 
 templates.env.filters["ts"] = _fmt_ts
 
@@ -230,7 +236,7 @@ def _get_session(request: Request) -> str | None:
 
 
 def _require_admin(request: Request) -> None:
-    ip = request.client.host if request.client else "unknown"
+    ip = _get_ip(request)
     # Whitelist проверка
     if ADMIN_WHITELIST and ip not in ADMIN_WHITELIST:
         raise HTTPException(status_code=403, detail="Доступ запрещён")
