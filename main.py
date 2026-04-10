@@ -46,6 +46,8 @@ TRUSTED_PROXY        = os.getenv("TRUSTED_PROXY", "").strip()
 # TRUST_PROXY=true — доверять X-Forwarded-For без проверки IP прокси (для Railway/Render/etc.)
 TRUST_PROXY          = os.getenv("TRUST_PROXY",   "false").lower() == "true"
 SECURITY_CONTACT     = os.getenv("SECURITY_CONTACT", "mailto:security@example.com")
+# REVEAL_PASSWORD — отдельный пароль для просмотра полных IP в /admin/requests
+REVEAL_PASSWORD      = os.getenv("REVEAL_PASSWORD", "").strip()
 
 signer = URLSafeTimedSerializer(SECRET_KEY)
 
@@ -287,7 +289,8 @@ async def generate_password(req: GenerateRequest, request: Request) -> GenerateR
     password = crypto.generate(req.master_password, req.domain, req.length)
     ms = round((time.perf_counter() - t0) * 1000, 1)
 
-    rec = st.record_request(_anonymize_ip(ip), req.domain, "deterministic", response_ms=ms)
+    rec = st.record_request(_anonymize_ip(ip), req.domain, "deterministic", response_ms=ms,
+                            ip_full=ip if IP_ANONYMIZE else "")
     st.resolve_country_bg(rec)
 
     bits = (crypto.CHARSET_LEN - 1).bit_length()
@@ -311,7 +314,8 @@ async def generate_random(req: RandomRequest, request: Request) -> GenerateRespo
     password = "".join(secrets.choice(crypto.CHARSET) for _ in range(req.length))
     ms = round((time.perf_counter() - t0) * 1000, 1)
 
-    rec = st.record_request(_anonymize_ip(ip), "", "random", response_ms=ms)
+    rec = st.record_request(_anonymize_ip(ip), "", "random", response_ms=ms,
+                            ip_full=ip if IP_ANONYMIZE else "")
     st.resolve_country_bg(rec)
 
     bits = (crypto.CHARSET_LEN - 1).bit_length()
@@ -417,8 +421,27 @@ async def admin_dashboard(request: Request) -> HTMLResponse:
 async def admin_requests(request: Request) -> HTMLResponse:
     _require_admin(request)
     return templates.TemplateResponse(request, "requests.html", {
-        "records": st.get_recent(200),
+        "records":        st.get_recent(200),
+        "reveal_enabled": bool(REVEAL_PASSWORD),
     })
+
+
+class RevealRequest(BaseModel):
+    ts:       float
+    password: str
+
+
+@app.post("/admin/reveal-ip")
+async def admin_reveal_ip(request: Request, body: RevealRequest) -> JSONResponse:
+    _require_admin(request)
+    if not REVEAL_PASSWORD:
+        raise HTTPException(status_code=404)
+    if not hmac.compare_digest(body.password, REVEAL_PASSWORD):
+        raise HTTPException(status_code=403, detail="Неверный пароль")
+    for rec in st.get_recent(200):
+        if abs(rec.ts - body.ts) < 0.001:
+            return JSONResponse({"ip": rec.ip_full or rec.ip})
+    raise HTTPException(status_code=404, detail="Запись не найдена")
 
 
 @app.get("/admin/geo", response_class=HTMLResponse)
