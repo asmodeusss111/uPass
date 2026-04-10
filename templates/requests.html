@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>uPass — Запросы</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#06040f;--bg2:#09071a;--surface:#0e0c1f;--surface2:#131028;--surface3:#181530;
+      --border:#1e1a38;--border-light:#2a2550;
+      --violet:#a855f7;--violet-dim:#7c3aed;--violet-dk:#4c1d95;
+      --violet-gl:rgba(168,85,247,0.12);--violet-f:rgba(168,85,247,0.06);
+      --indigo:#6366f1;--green:#22d3a0;--green-f:rgba(34,211,160,0.07);
+      --red:#f87171;--red-f:rgba(248,113,113,0.07);
+      --text:#e4e0f5;--text-mid:#8b82b8;--text-dim:#4a4470;
+      --radius:12px;--radius-sm:8px;
+    }
+    html,body { min-height:100%; background:var(--bg); color:var(--text);
+      font-family:'Inter','Segoe UI',system-ui,sans-serif; font-size:13px;
+      -webkit-font-smoothing:antialiased; }
+    body::after { content:''; position:fixed; top:-20vh; left:50%;
+      transform:translateX(-50%); width:700px; height:500px;
+      background:radial-gradient(ellipse,rgba(124,58,237,0.1) 0%,transparent 70%);
+      pointer-events:none; z-index:0; }
+    .shell { position:relative; z-index:1; display:flex; min-height:100vh; }
+    .sidebar { width:220px; flex-shrink:0; background:var(--surface);
+      border-right:1px solid var(--border); display:flex; flex-direction:column;
+      padding:24px 0; position:sticky; top:0; height:100vh; }
+    .sidebar-logo { display:flex; align-items:center; gap:10px; padding:0 20px 24px;
+      border-bottom:1px solid var(--border); margin-bottom:16px; }
+    .logo-icon { width:32px; height:32px; background:var(--violet-f);
+      border:1px solid var(--violet-dk); border-radius:8px; display:flex;
+      align-items:center; justify-content:center; color:var(--violet);
+      box-shadow:0 0 12px var(--violet-gl); }
+    .logo-text { font-size:15px; font-weight:800; }
+    .logo-sub { font-size:10px; color:var(--text-dim); letter-spacing:0.06em; }
+    .nav-item { display:flex; align-items:center; gap:9px; padding:9px 20px;
+      color:var(--text-dim); font-size:12.5px; font-weight:600;
+      border-left:2px solid transparent; transition:all .2s; text-decoration:none; }
+    .nav-item:hover { color:var(--text-mid); background:var(--surface2); }
+    .nav-item.active { color:var(--violet); border-left-color:var(--violet); background:var(--violet-f); }
+    .nav-section { font-size:10px; font-weight:700; letter-spacing:0.1em;
+      text-transform:uppercase; color:var(--text-dim); padding:16px 20px 6px; }
+    .sidebar-footer { margin-top:auto; padding:16px 20px 0; border-top:1px solid var(--border); }
+    .btn-logout { display:flex; align-items:center; gap:8px; width:100%;
+      background:var(--red-f); border:1px solid rgba(248,113,113,0.2);
+      border-radius:var(--radius-sm); padding:8px 12px; color:var(--red);
+      font-size:12px; font-weight:600; font-family:inherit; cursor:pointer;
+      transition:background .2s; text-decoration:none; }
+    .btn-logout:hover { background:rgba(248,113,113,0.12); }
+    .main { flex:1; padding:32px; overflow-y:auto; }
+    .page-title { font-size:22px; font-weight:800; letter-spacing:-0.5px; margin-bottom:4px;
+      background:linear-gradient(135deg,#fff 0%,#c4b5fd 100%);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .page-sub { font-size:12px; color:var(--text-dim); margin-bottom:28px; }
+    .actions { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+    .btn-action { display:flex; align-items:center; gap:6px; background:var(--surface);
+      border:1px solid var(--border); border-radius:var(--radius-sm);
+      padding:8px 14px; font-size:12px; font-weight:600; font-family:inherit;
+      color:var(--text-mid); cursor:pointer; transition:all .2s; text-decoration:none; }
+    .btn-action:hover { border-color:var(--violet-dk); color:var(--violet); background:var(--violet-f); }
+    .table-wrap { background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); overflow:hidden; }
+    table { width:100%; border-collapse:collapse; }
+    thead th { background:var(--surface2); padding:10px 14px; font-size:10.5px;
+      font-weight:700; letter-spacing:0.06em; text-transform:uppercase;
+      color:var(--text-dim); text-align:left; border-bottom:1px solid var(--border); }
+    tbody tr { border-bottom:1px solid var(--border); transition:background .15s; }
+    tbody tr:last-child { border-bottom:none; }
+    tbody tr:hover { background:var(--surface2); }
+    tbody td { padding:9px 14px; font-size:12px; color:var(--text-mid);
+      font-family:'Cascadia Code','Fira Code',monospace; }
+    .badge { display:inline-block; padding:2px 8px; border-radius:4px;
+      font-size:10.5px; font-weight:700; font-family:inherit; }
+    .badge-violet { background:var(--violet-f); color:var(--violet); border:1px solid var(--violet-dk); }
+    .badge-green  { background:var(--green-f);  color:var(--green);  border:1px solid rgba(34,211,160,0.3); }
+    .empty { padding:40px; text-align:center; color:var(--text-dim); font-size:12px; }
+    .count-badge { display:inline-flex; align-items:center; gap:6px;
+      background:var(--surface2); border:1px solid var(--border);
+      border-radius:6px; padding:4px 12px; font-size:12px; color:var(--text-dim);
+      margin-bottom:16px; }
+    .count-badge span { color:var(--violet); font-weight:700; }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      <div><div class="logo-text">uPass</div><div class="logo-sub">ADMIN PANEL</div></div>
+    </div>
+    <span class="nav-section">Мониторинг</span>
+    <a href="/admin" class="nav-item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+      </svg>Дашборд</a>
+    <a href="/admin/requests" class="nav-item active">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>Запросы</a>
+    <a href="/admin/geo" class="nav-item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>География</a>
+    <span class="nav-section">Система</span>
+    <a href="/admin/security" class="nav-item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>Безопасность</a>
+    <a href="/admin/server" class="nav-item">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+      </svg>Сервер</a>
+    <div class="sidebar-footer">
+      <a href="/admin/logout" class="btn-logout">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>Выйти</a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-title">Запросы</div>
+    <div class="page-sub">Последние {{ records|length }} запросов из буфера (макс. 200)</div>
+
+    <div class="actions">
+      <button class="btn-action" onclick="location.reload()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>Обновить</button>
+    </div>
+
+    <div class="table-wrap">
+      {% if records %}
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Время</th>
+            <th>IP</th>
+            <th>Домен</th>
+            <th>Тип</th>
+            <th>Страна</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in records %}
+          <tr>
+            <td style="color:var(--text-dim)">{{ loop.index }}</td>
+            <td>{{ r.ts | ts }}</td>
+            <td>{{ r.ip }}</td>
+            <td>{{ r.domain or '—' }}</td>
+            <td>
+              {% if r.kind == 'deterministic' %}
+              <span class="badge badge-violet">det</span>
+              {% else %}
+              <span class="badge badge-green">rnd</span>
+              {% endif %}
+            </td>
+            <td>{{ r.country }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">Запросов пока нет</div>
+      {% endif %}
+    </div>
+  </main>
+</div>
+</body>
+</html>
