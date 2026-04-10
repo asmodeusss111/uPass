@@ -19,6 +19,7 @@ class RequestRecord:
     kind:         str       # "deterministic" | "random"
     response_ms:  float = 0.0
     country:      str   = "?"
+    ip_full:      str   = ""  # полный IP (только если включена анонимизация)
 
 @dataclass
 class FailedLogin:
@@ -51,8 +52,8 @@ RATE_ALERT_THRESHOLD = 10
 
 # ── Запросы ───────────────────────────────────────────────────────
 
-def record_request(ip: str, domain: str, kind: str, response_ms: float = 0.0) -> RequestRecord:
-    rec = RequestRecord(ts=time.time(), ip=ip, domain=domain, kind=kind, response_ms=response_ms)
+def record_request(ip: str, domain: str, kind: str, response_ms: float = 0.0, ip_full: str = "") -> RequestRecord:
+    rec = RequestRecord(ts=time.time(), ip=ip, domain=domain, kind=kind, response_ms=response_ms, ip_full=ip_full)
     _log.append(rec)
     _counters["total"] += 1
     _counters[kind]    += 1
