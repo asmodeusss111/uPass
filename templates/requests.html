@@ -81,6 +81,32 @@
       border-radius:6px; padding:4px 12px; font-size:12px; color:var(--text-dim);
       margin-bottom:16px; }
     .count-badge span { color:var(--violet); font-weight:700; }
+    .btn-reveal { background:none; border:none; cursor:pointer; color:var(--text-dim);
+      padding:0 0 0 6px; font-size:13px; line-height:1; transition:color .15s; }
+    .btn-reveal:hover { color:var(--violet); }
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6);
+      z-index:100; align-items:center; justify-content:center; }
+    .modal-overlay.open { display:flex; }
+    .modal { background:var(--surface); border:1px solid var(--border-light);
+      border-radius:var(--radius); padding:24px; width:340px; }
+    .modal-title { font-size:14px; font-weight:700; margin-bottom:16px; color:var(--text); }
+    .modal-input { width:100%; background:var(--surface2); border:1px solid var(--border);
+      border-radius:var(--radius-sm); padding:9px 12px; color:var(--text);
+      font-family:inherit; font-size:13px; outline:none; margin-bottom:12px; }
+    .modal-input:focus { border-color:var(--violet-dk); }
+    .modal-result { font-family:'Cascadia Code','Fira Code',monospace; font-size:13px;
+      color:var(--green); background:var(--green-f); border:1px solid rgba(34,211,160,0.2);
+      border-radius:var(--radius-sm); padding:8px 12px; margin-bottom:12px;
+      display:none; word-break:break-all; }
+    .modal-error { font-size:12px; color:var(--red); margin-bottom:12px; display:none; }
+    .modal-actions { display:flex; gap:8px; justify-content:flex-end; }
+    .btn-confirm { background:var(--violet-dk); border:none; border-radius:var(--radius-sm);
+      padding:8px 16px; color:#fff; font-size:12px; font-weight:600;
+      font-family:inherit; cursor:pointer; transition:background .2s; }
+    .btn-confirm:hover { background:var(--violet-dim); }
+    .btn-cancel { background:var(--surface2); border:1px solid var(--border);
+      border-radius:var(--radius-sm); padding:8px 16px; color:var(--text-mid);
+      font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; }
   </style>
 </head>
 <body>
@@ -159,7 +185,12 @@
           <tr>
             <td style="color:var(--text-dim)">{{ loop.index }}</td>
             <td>{{ r.ts | ts }}</td>
-            <td>{{ r.ip }}</td>
+            <td>
+              {{ r.ip }}
+              {% if reveal_enabled and r.ip_full %}
+              <button class="btn-reveal" onclick="openReveal({{ r.ts }})" title="Показать полный IP">👁</button>
+              {% endif %}
+            </td>
             <td>{{ r.domain or '—' }}</td>
             <td>
               {% if r.kind == 'deterministic' %}
@@ -178,6 +209,75 @@
       {% endif %}
     </div>
   </main>
+</div>
+
+<div class="modal-overlay" id="reveal-modal">
+  <div class="modal">
+    <div class="modal-title">🔍 Показать полный IP</div>
+    <div class="modal-result" id="reveal-result"></div>
+    <div class="modal-error" id="reveal-error"></div>
+    <input class="modal-input" type="password" id="reveal-pwd"
+           placeholder="Reveal password" autocomplete="off"/>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeReveal()">Отмена</button>
+      <button class="btn-confirm" onclick="doReveal()">Показать</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let _revealTs = null;
+
+  function openReveal(ts) {
+    _revealTs = ts;
+    document.getElementById('reveal-result').style.display = 'none';
+    document.getElementById('reveal-error').style.display  = 'none';
+    document.getElementById('reveal-pwd').value = '';
+    document.getElementById('reveal-modal').classList.add('open');
+    setTimeout(() => document.getElementById('reveal-pwd').focus(), 50);
+  }
+
+  function closeReveal() {
+    document.getElementById('reveal-modal').classList.remove('open');
+    _revealTs = null;
+  }
+
+  async function doReveal() {
+    const pwd = document.getElementById('reveal-pwd').value;
+    const errEl = document.getElementById('reveal-error');
+    const resEl = document.getElementById('reveal-result');
+    errEl.style.display = 'none';
+    resEl.style.display = 'none';
+    try {
+      const resp = await fetch('/admin/reveal-ip', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ts: _revealTs, password: pwd}),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        resEl.textContent = data.ip;
+        resEl.style.display = 'block';
+        document.getElementById('reveal-pwd').style.display = 'none';
+      } else {
+        const data = await resp.json().catch(() => ({}));
+        errEl.textContent = data.detail || 'Ошибка';
+        errEl.style.display = 'block';
+      }
+    } catch {
+      errEl.textContent = 'Ошибка соединения';
+      errEl.style.display = 'block';
+    }
+  }
+
+  document.getElementById('reveal-pwd').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doReveal();
+    if (e.key === 'Escape') closeReveal();
+  });
+  document.getElementById('reveal-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeReveal();
+  });
+</script>
 </div>
 </body>
 </html>
