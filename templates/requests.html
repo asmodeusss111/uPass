@@ -232,9 +232,11 @@
     _revealTs = ts;
     document.getElementById('reveal-result').style.display = 'none';
     document.getElementById('reveal-error').style.display  = 'none';
-    document.getElementById('reveal-pwd').value = '';
+    const pwd = document.getElementById('reveal-pwd');
+    pwd.style.display = '';
+    pwd.value = '';
     document.getElementById('reveal-modal').classList.add('open');
-    setTimeout(() => document.getElementById('reveal-pwd').focus(), 50);
+    setTimeout(() => pwd.focus(), 50);
   }
 
   function closeReveal() {
