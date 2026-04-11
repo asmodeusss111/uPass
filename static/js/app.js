@@ -2,6 +2,18 @@
 
 let currentMode = 'deterministic';
 
+// ── Popup / integration mode ─────────────────────────────────────
+const _urlParams   = new URLSearchParams(window.location.search);
+const _popupDomain = _urlParams.get('domain') || '';
+const _popupSource = _urlParams.get('source') || '';
+const _isPopup     = !!_popupSource && !!window.opener;
+
+if (_popupDomain) {
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('domain').value = _popupDomain;
+  });
+}
+
 // ── Mode toggle ─────────────────────────────────────────────────
 
 function setMode(mode) {
@@ -129,7 +141,24 @@ function showResult(data, domain) {
   document.getElementById('meta-entropy').textContent    = data.entropy_bits;
 
   document.getElementById('result').classList.add('visible');
-  resetCopyBtn();
+
+  if (_isPopup) {
+    const btn = document.getElementById('btn-copy');
+    btn.classList.remove('copied');
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Вставить в ${_popupSource}`;
+    btn.onclick = sendToOpener;
+  } else {
+    resetCopyBtn();
+  }
+}
+
+function sendToOpener() {
+  const pwd = document.getElementById('result-password').textContent;
+  window.opener.postMessage({ type: 'upass_password', password: pwd }, '*');
+  const btn = document.getElementById('btn-copy');
+  btn.classList.add('copied');
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Вставлено!`;
+  setTimeout(() => window.close(), 800);
 }
 
 function showError(msg) {
