@@ -56,6 +56,9 @@ SECURITY_CONTACT     = os.getenv("SECURITY_CONTACT", "mailto:security@example.co
 REVEAL_PASSWORD      = os.getenv("REVEAL_PASSWORD", "").strip()
 # TOTP_SECRET — base32 ключ для 2FA (генерируй: python -c "import pyotp; print(pyotp.random_base32())")
 TOTP_SECRET          = os.getenv("TOTP_SECRET", "").strip()
+# DASHBOARD_API_KEY — ключ для доступа с личного дашборда
+DASHBOARD_API_KEY    = os.getenv("DASHBOARD_API_KEY", "").strip()
+DASHBOARD_ORIGIN     = os.getenv("DASHBOARD_ORIGIN", "https://asmodeusss111.github.io").strip()
 PRE_AUTH_COOKIE      = "upass_pre_auth"
 _tz_name = os.getenv("TZ", "UTC")
 try:
@@ -646,6 +649,45 @@ async def security_txt() -> str:
         "Policy: Пожалуйста, сообщайте об уязвимостях ответственно.\n"
         "Hiring: false\n"
     )
+
+
+# ── Dashboard API ─────────────────────────────────────────────────
+
+def _dashboard_cors(response: JSONResponse) -> JSONResponse:
+    response.headers["Access-Control-Allow-Origin"]  = DASHBOARD_ORIGIN
+    response.headers["Access-Control-Allow-Headers"] = "X-Dashboard-Key"
+    return response
+
+
+@app.options("/api/dashboard/stats")
+async def dashboard_stats_preflight() -> JSONResponse:
+    r = JSONResponse(content={})
+    return _dashboard_cors(r)
+
+
+@app.get("/api/dashboard/stats")
+async def dashboard_stats(request: Request) -> JSONResponse:
+    if not DASHBOARD_API_KEY:
+        raise HTTPException(status_code=404)
+    key = request.headers.get("X-Dashboard-Key", "")
+    if not hmac.compare_digest(key, DASHBOARD_API_KEY):
+        raise HTTPException(status_code=401, detail="Неверный ключ")
+
+    counters = st.get_counters()
+    avg_ms   = st.get_avg_response_ms()
+
+    data = {
+        "total_requests":     counters.get("total", 0),
+        "deterministic":      counters.get("deterministic", 0),
+        "random":             counters.get("random", 0),
+        "failed_logins_hour": st.get_failed_logins_last_hour(),
+        "rate_hits_hour":     st.get_rate_hits_last_hour(),
+        "blocked_ips":        len(st.get_blocked_ips()),
+        "top_domains":        st.get_top_domains(5),
+        "uptime":             round(st.get_uptime()),
+        "avg_ms":             avg_ms,
+    }
+    return _dashboard_cors(JSONResponse(content=data))
 
 
 # ── Error handlers ────────────────────────────────────────────────
