@@ -816,8 +816,35 @@ def _run_cmd(cmd: str) -> str:
     if parts[0] == 'blocked':
         ips = st.get_blocked_ips()
         return '\n'.join(ips) if ips else 'Нет заблокированных IP'
+    if parts[0] == 'audit':
+        import subprocess, json as _json
+        try:
+            r = subprocess.run(
+                ['pip-audit', '--format', 'json', '--progress-spinner', 'off'],
+                capture_output=True, text=True, timeout=60,
+            )
+            raw = r.stdout.strip()
+            if not raw:
+                return r.stderr.strip() or 'pip-audit вернул пустой ответ'
+            data = _json.loads(raw)
+            vulns = data.get('vulnerabilities', [])
+            if not vulns:
+                return '✓ Уязвимостей не найдено (pip-audit)'
+            lines = [f'⚠ Найдено уязвимостей: {len(vulns)}\n']
+            for v in vulns:
+                pkg = v.get('name','?')
+                ver = v.get('version','?')
+                ids = ', '.join(a.get('id','?') for a in v.get('vulns',[]))
+                fix = v.get('fix_versions') or []
+                fix_str = ', '.join(fix) if fix else 'нет исправления'
+                lines.append(f'{pkg} {ver} — {ids} → fix: {fix_str}')
+            return '\n'.join(lines)
+        except subprocess.TimeoutExpired:
+            return 'Превышено время выполнения (60с)'
+        except Exception as e:
+            return f'Ошибка pip-audit: {e}'
     if parts[0] not in allowed:
-        return f"Команда не разрешена: {parts[0]}\nДоступные: memory, disk, stats, blocked, ps, free, df, uptime, ls, pwd, env, uname"
+        return f"Команда не разрешена: {parts[0]}\nДоступные: memory, disk, stats, blocked, audit, ps, free, df, uptime, ls, pwd, env, uname"
     # Блокируем опасные флаги
     dangerous = ['--exec', '-e', '|', '>', '>>', '&&', ';', '$(', '`']
     if any(d in cmd for d in dangerous):
