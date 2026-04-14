@@ -816,6 +816,13 @@ async def http_handler(request: Request, exc: HTTPException) -> JSONResponse | R
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc) -> JSONResponse:
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(status_code=404, content={"error": "Endpoint не найден"})
+    return templates.TemplateResponse("404.html", {"request": request, "path": request.url.path}, status_code=404)
+
+
 @app.exception_handler(Exception)
 async def generic_handler(request: Request, exc: Exception) -> JSONResponse:
     log.error("unhandled  %s: %s", type(exc).__name__, exc)
