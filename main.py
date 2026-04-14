@@ -691,6 +691,23 @@ async def dashboard_stats(request: Request) -> JSONResponse:
     return _dashboard_cors(JSONResponse(content=data))
 
 
+@app.options("/api/railway-status")
+async def railway_status_preflight() -> JSONResponse:
+    return _dashboard_cors(JSONResponse(content={}))
+
+
+@app.get("/api/railway-status")
+async def railway_status() -> JSONResponse:
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get("https://status.railway.app/api/v2/status.json", timeout=8)
+            data = r.json()
+    except Exception:
+        data = {"status": {"indicator": "unknown", "description": ""}}
+    return _dashboard_cors(JSONResponse(content=data))
+
+
 # ── Terminal API ──────────────────────────────────────────────────
 
 TERMINAL_KEY    = os.getenv("TERMINAL_KEY", "").strip()
