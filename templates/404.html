@@ -6,6 +6,7 @@
   <title>404 — uPass</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
       background: #020817;
       color: #e2e8f0;
@@ -15,78 +16,192 @@
       align-items: center;
       justify-content: center;
       padding: 24px;
+      overflow: hidden;
     }
-    .container { max-width: 540px; width: 100%; text-align: center; }
+
+    /* ── Background grid ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
+      background-size: 44px 44px;
+      pointer-events: none;
+    }
+
+    /* ── Glow orbs ── */
+    .orb {
+      position: fixed; border-radius: 50%;
+      filter: blur(90px); pointer-events: none;
+    }
+    .orb1 { width: 420px; height: 420px; background: #1d4ed8; opacity: 0.18; top: -120px; left: -120px; animation: float1 9s ease-in-out infinite; }
+    .orb2 { width: 320px; height: 320px; background: #0891b2; opacity: 0.14; bottom: -100px; right: -100px; animation: float2 11s ease-in-out infinite; }
+    .orb3 { width: 200px; height: 200px; background: #7c3aed; opacity: 0.1; top: 50%; left: 50%; transform: translate(-50%,-50%); animation: float3 7s ease-in-out infinite; }
+    @keyframes float1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(50px,40px)} }
+    @keyframes float2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-40px,-30px)} }
+    @keyframes float3 { 0%,100%{transform:translate(-50%,-50%) scale(1)} 50%{transform:translate(-50%,-50%) scale(1.3)} }
+
+    /* ── Floating particles ── */
+    .particles { position: fixed; inset: 0; pointer-events: none; }
+    .particle {
+      position: absolute; border-radius: 50%;
+      background: rgba(59,130,246,0.5);
+      animation: rise linear infinite;
+    }
+    @keyframes rise {
+      0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 0.5; }
+      100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+    }
+
+    .container {
+      max-width: 540px; width: 100%;
+      text-align: center; position: relative; z-index: 1;
+      animation: fadeIn 0.7s ease;
+    }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+    /* ── Lock icon ── */
+    .lock-wrap {
+      margin-bottom: 12px;
+      animation: lockBounce 0.8s cubic-bezier(0.34,1.56,0.64,1) 0.2s both;
+    }
     .lock-icon {
       font-size: 72px;
-      margin-bottom: 8px;
-      filter: drop-shadow(0 0 24px rgba(59,130,246,0.4));
+      display: inline-block;
+      filter: drop-shadow(0 0 20px rgba(59,130,246,0.5));
+      animation: lockFloat 4s ease-in-out infinite;
     }
+    @keyframes lockBounce { from{opacity:0;transform:scale(0.3) rotate(-20deg)} to{opacity:1;transform:scale(1) rotate(0)} }
+    @keyframes lockFloat  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+
+    /* ── 404 ── */
     .code-404 {
-      font-size: 96px;
+      font-size: 100px;
       font-weight: 900;
-      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      line-height: 1;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4, #818cf8);
+      background-size: 200% 200%;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      line-height: 1;
-      margin-bottom: 16px;
+      animation: gradShift 4s ease infinite, fadeUp 0.6s ease 0.4s both;
+      filter: drop-shadow(0 0 30px rgba(59,130,246,0.3));
     }
+    @keyframes gradShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+
     .title {
-      font-size: 22px;
-      font-weight: 700;
-      color: #f1f5f9;
+      font-size: 24px; font-weight: 700; color: #f1f5f9;
       margin-bottom: 10px;
+      animation: fadeUp 0.5s ease 0.6s both;
     }
     .desc {
-      font-size: 14px;
-      color: #64748b;
-      margin-bottom: 32px;
-      line-height: 1.6;
+      font-size: 14px; color: #64748b; margin-bottom: 32px; line-height: 1.7;
+      animation: fadeUp 0.5s ease 0.75s both;
     }
+
+    /* ── Card ── */
     .card {
-      background: rgba(15,23,42,0.8);
-      border: 1px solid rgba(59,130,246,0.15);
-      border-radius: 12px;
-      padding: 20px;
+      background: rgba(15,23,42,0.85);
+      border: 1px solid rgba(59,130,246,0.18);
+      border-radius: 12px; padding: 20px 24px;
       margin-bottom: 28px;
-      font-family: monospace;
+      font-family: 'Courier New', monospace;
       text-align: left;
+      position: relative; overflow: hidden;
+      animation: fadeUp 0.5s ease 0.9s both;
+      box-shadow: 0 0 30px rgba(59,130,246,0.06);
     }
-    .card-line { font-size: 13px; color: #475569; margin-bottom: 4px; }
-    .card-line span { color: #ef4444; }
-    .card-line .ok { color: #10b981; }
-    .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    /* Shimmer line */
+    .card::after {
+      content: '';
+      position: absolute; top: 0; left: -100%;
+      width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(59,130,246,0.06), transparent);
+      animation: shimmer 3s ease-in-out 1.5s infinite;
+    }
+    @keyframes shimmer { 0%{left:-100%} 100%{left:200%} }
+
+    .card-line { font-size: 13px; color: #475569; margin-bottom: 6px; line-height: 1.5; }
+    .card-line:last-child { margin-bottom: 0; }
+    .card-line .val-red  { color: #f87171; }
+    .card-line .val-blue { color: #60a5fa; }
+    .card-line .val-green{ color: #34d399; }
+
+    /* ── Buttons ── */
+    .actions {
+      display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+      animation: fadeUp 0.5s ease 1.05s both;
+    }
     .btn {
-      padding: 11px 24px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
-      border: none;
-      transition: opacity 0.18s;
+      padding: 12px 26px; border-radius: 10px;
+      font-size: 14px; font-weight: 600;
+      cursor: pointer; text-decoration: none;
+      border: none; transition: transform 0.15s, box-shadow 0.15s;
     }
-    .btn:hover { opacity: 0.82; }
-    .btn-primary { background: linear-gradient(135deg, #3b82f6, #06b6d4); color: #fff; }
-    .btn-outline { background: transparent; border: 1px solid rgba(59,130,246,0.3); color: #3b82f6; }
+    .btn:hover { transform: translateY(-3px); }
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #06b6d4);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(37,99,235,0.4);
+    }
+    .btn-primary:hover { box-shadow: 0 8px 30px rgba(37,99,235,0.55); }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid rgba(59,130,246,0.35);
+      color: #60a5fa;
+    }
+    .btn-outline:hover { border-color: #3b82f6; background: rgba(59,130,246,0.08); }
+
+    @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
   </style>
 </head>
 <body>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+  <div class="particles" id="particles"></div>
+
   <div class="container">
-    <div class="lock-icon">🔒</div>
+    <div class="lock-wrap">
+      <span class="lock-icon">🔒</span>
+    </div>
     <div class="code-404">404</div>
     <div class="title">Доступ запрещён</div>
-    <div class="desc">Страница не найдена или у вас нет прав для её просмотра.<br>Проверьте адрес и попробуйте снова.</div>
+    <div class="desc">
+      Страница не найдена или у вас нет прав для её просмотра.<br>
+      Проверьте адрес и попробуйте снова.
+    </div>
     <div class="card">
-      <div class="card-line">status: <span>404 NOT FOUND</span></div>
-      <div class="card-line">path: <span>{{ path }}</span></div>
-      <div class="card-line">auth: <span class="ok">uPass v2 · Argon2id</span></div>
+      <div class="card-line">status: <span class="val-red">404 NOT FOUND</span></div>
+      <div class="card-line">path:&nbsp;&nbsp; <span class="val-blue">{{ path }}</span></div>
+      <div class="card-line">auth:&nbsp;&nbsp; <span class="val-green">uPass v2 · Argon2id</span></div>
     </div>
     <div class="actions">
       <a href="/" class="btn btn-primary">← На главную</a>
       <a href="/login" class="btn btn-outline">Войти</a>
     </div>
   </div>
+
+  <script>
+    // Generate floating particles
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 18; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = Math.random() * 4 + 2;
+      p.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${Math.random() * 100}%;
+        animation-duration:${Math.random() * 10 + 8}s;
+        animation-delay:${Math.random() * 8}s;
+        opacity:${Math.random() * 0.5 + 0.2};
+      `;
+      container.appendChild(p);
+    }
+  </script>
 </body>
 </html>
