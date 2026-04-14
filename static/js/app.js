@@ -247,3 +247,58 @@ async function copyPassword() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter') generate();
 });
+
+// ── Strength Meter ───────────────────────────────────────────────
+const _SM_LABELS = ['', 'Очень слабый', 'Слабый', 'Средний', 'Сильный', 'Очень сильный'];
+const _SM_COLORS = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#6366f1'];
+
+function _smEntropy(pwd) {
+  let pool = 0;
+  if (/[a-z]/.test(pwd)) pool += 26;
+  if (/[A-Z]/.test(pwd)) pool += 26;
+  if (/[0-9]/.test(pwd))  pool += 10;
+  if (/[^a-zA-Z0-9]/.test(pwd)) pool += 32;
+  return pool > 0 ? Math.round(pwd.length * Math.log2(pool)) : 0;
+}
+
+function _smScore(pwd) {
+  if (!pwd) return 0;
+  let s = 0;
+  if (pwd.length >= 8)          s++;
+  if (/[A-Z]/.test(pwd))        s++;
+  if (/[a-z]/.test(pwd))        s++;
+  if (/[0-9]/.test(pwd))        s++;
+  if (/[^a-zA-Z0-9]/.test(pwd)) s++;
+  if (pwd.length >= 16) s = Math.min(5, s + 1);
+  if (pwd.length < 6)   s = Math.min(1, s);
+  return Math.min(5, s);
+}
+
+function _smCheck(id, ok) {
+  document.getElementById('smc-' + id).classList.toggle('ok', ok);
+  const dot = document.getElementById('smd-' + id);
+  dot.textContent = ok ? '✓' : '';
+}
+
+function smAnalyze(pwd) {
+  const sc   = _smScore(pwd);
+  const bits = _smEntropy(pwd);
+
+  for (let i = 1; i <= 5; i++) {
+    const bar = document.getElementById('sm-b' + i);
+    bar.className = 'sm-bar' + (i <= sc ? ` s${sc}` : '');
+  }
+
+  const lbl = document.getElementById('sm-label');
+  lbl.textContent = pwd ? _SM_LABELS[sc] : '—';
+  lbl.style.color = pwd ? _SM_COLORS[sc] : '#4b5563';
+
+  document.getElementById('sm-entropy').textContent = pwd ? `~${bits} бит энтропии` : '';
+
+  _smCheck('len',     pwd.length >= 8);
+  _smCheck('upper',   /[A-Z]/.test(pwd));
+  _smCheck('lower',   /[a-z]/.test(pwd));
+  _smCheck('digit',   /[0-9]/.test(pwd));
+  _smCheck('special', /[^a-zA-Z0-9]/.test(pwd));
+  _smCheck('long',    pwd.length >= 16);
+}

@@ -172,6 +172,45 @@
       </button>
     </div>
 
+    <!-- Strength Meter -->
+    <div class="card" style="margin-top:16px">
+      <div class="card-header">
+        <div class="card-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        </div>
+        <div>
+          <div class="card-title">Проверить пароль</div>
+          <div class="card-sub">Анализ силы и энтропии</div>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:16px">
+        <div class="input-wrap">
+          <input type="text" id="sm-input" placeholder="Вставьте или введите пароль…" autocomplete="off" oninput="smAnalyze(this.value)"/>
+        </div>
+      </div>
+      <div class="sm-bars">
+        <div class="sm-bar" id="sm-b1"></div>
+        <div class="sm-bar" id="sm-b2"></div>
+        <div class="sm-bar" id="sm-b3"></div>
+        <div class="sm-bar" id="sm-b4"></div>
+        <div class="sm-bar" id="sm-b5"></div>
+      </div>
+      <div class="sm-footer">
+        <span class="sm-label" id="sm-label">—</span>
+        <span class="sm-entropy" id="sm-entropy"></span>
+      </div>
+      <div class="sm-checks">
+        <div class="sm-check" id="smc-len"><div class="sm-dot" id="smd-len"></div>Минимум 8 символов</div>
+        <div class="sm-check" id="smc-upper"><div class="sm-dot" id="smd-upper"></div>Заглавные буквы (A–Z)</div>
+        <div class="sm-check" id="smc-lower"><div class="sm-dot" id="smd-lower"></div>Строчные буквы (a–z)</div>
+        <div class="sm-check" id="smc-digit"><div class="sm-dot" id="smd-digit"></div>Цифры (0–9)</div>
+        <div class="sm-check" id="smc-special"><div class="sm-dot" id="smd-special"></div>Спецсимволы (!@#$…)</div>
+        <div class="sm-check" id="smc-long"><div class="sm-dot" id="smd-long"></div>Длина 16+ символов</div>
+      </div>
+    </div>
+
     <!-- Algorithm info -->
     <div class="algo">
       <div class="algo-title">Алгоритм</div>
