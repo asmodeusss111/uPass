@@ -208,6 +208,15 @@ class GenerateResponse(BaseModel):
 app = FastAPI(title="uPass", docs_url=None, redoc_url=None)
 
 
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(status_code=404, content={"error": "Endpoint не найден"})
+    from fastapi.templating import Jinja2Templates as _J
+    _t = _J(directory=str(Path(__file__).parent / "templates"))
+    return _t.TemplateResponse("404.html", {"request": request, "path": request.url.path}, status_code=404)
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
