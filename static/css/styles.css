@@ -314,7 +314,7 @@ body::after {
 .collapsible {
   overflow: hidden;
   transition: max-height .35s ease, opacity .35s ease, margin-bottom .35s ease;
-  max-height: 110px;
+  max-height: 200px;
   opacity: 1;
 }
 
