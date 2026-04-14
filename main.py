@@ -817,10 +817,12 @@ async def http_handler(request: Request, exc: HTTPException) -> JSONResponse | R
 
 
 @app.exception_handler(404)
-async def not_found_handler(request: Request, exc) -> JSONResponse:
+async def not_found_handler(request: Request, exc) -> HTMLResponse:
     if request.url.path.startswith("/api/"):
         return JSONResponse(status_code=404, content={"error": "Endpoint не найден"})
-    return templates.TemplateResponse("404.html", {"request": request, "path": request.url.path}, status_code=404)
+    html = (Path(__file__).parent / "templates" / "404.html").read_text(encoding="utf-8")
+    html = html.replace("{{ path }}", str(request.url.path))
+    return HTMLResponse(content=html, status_code=404)
 
 
 @app.exception_handler(Exception)
