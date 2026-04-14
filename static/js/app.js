@@ -1,6 +1,8 @@
 'use strict';
 
 let currentMode = 'deterministic';
+let _wordCount  = 4;
+let _separator  = '-';
 
 // ── Popup / integration mode ─────────────────────────────────────
 const _urlParams   = new URLSearchParams(window.location.search);
@@ -21,21 +23,45 @@ function setMode(mode) {
 
   const masterField = document.getElementById('master-field');
   const domainField = document.getElementById('domain-field');
+  const sliderWrap  = document.querySelector('.slider-wrap');
   const warning     = document.getElementById('argon-warning');
+  const phraseField = document.getElementById('phrase-field');
   const detBtn      = document.getElementById('mode-det');
   const rndBtn      = document.getElementById('mode-rnd');
+  const phraseBtn   = document.getElementById('mode-phrase');
 
-  const isRandom = mode === 'random';
+  const isDet    = mode === 'deterministic';
+  const isRnd    = mode === 'random';
+  const isPhrase = mode === 'passphrase';
 
-  masterField.classList.toggle('hidden', isRandom);
-  domainField.classList.toggle('hidden', isRandom);
-  warning.classList.toggle('hidden', isRandom);   // предупреждение только для Argon2
+  masterField.classList.toggle('hidden', !isDet);
+  domainField.classList.toggle('hidden', !isDet);
+  warning.classList.toggle('hidden', !isDet);
+  sliderWrap.classList.toggle('hidden', isPhrase);
+  phraseField.classList.toggle('hidden', !isPhrase);
 
-  detBtn.classList.toggle('active', !isRandom);
-  rndBtn.classList.toggle('active',  isRandom);
+  detBtn.classList.toggle('active', isDet);
+  rndBtn.classList.toggle('active', isRnd);
+  phraseBtn.classList.toggle('active', isPhrase);
 
+  document.getElementById('btn-text').textContent = isPhrase ? 'Сгенерировать фразу' : 'Сгенерировать пароль';
   document.getElementById('result').classList.remove('visible');
   document.getElementById('error-msg').classList.remove('visible');
+}
+
+function setWordCount(n) {
+  _wordCount = n;
+  document.querySelectorAll('#word-count-btns .sep-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.textContent) === n);
+  });
+}
+
+function setSep(sep) {
+  _separator = sep;
+  const labels = { '-': 'дефис  —', ' ': 'пробел', '.': 'точка  .', '_': 'подчёркивание _' };
+  document.querySelectorAll('#sep-btns .sep-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim() === (labels[sep] || '').trim());
+  });
 }
 
 // ── Slider ──────────────────────────────────────────────────────
@@ -83,10 +109,12 @@ async function generate() {
     if (!domain) return showError('Введите домен или сервис.');
   }
 
-  btn.disabled             = true;
-  spinner.style.display    = 'block';
-  btnIcon.style.display    = 'none';
-  btnText.textContent      = currentMode === 'random' ? 'Генерация…' : 'Вычисление Argon2id…';
+  btn.disabled          = true;
+  spinner.style.display = 'block';
+  btnIcon.style.display = 'none';
+  btnText.textContent   = currentMode === 'passphrase' ? 'Генерация…'
+                        : currentMode === 'random'     ? 'Генерация…'
+                        : 'Вычисление Argon2id…';
 
   try {
     let res;
@@ -94,7 +122,14 @@ async function generate() {
     const timeoutId  = setTimeout(() => controller.abort(), 30000);
 
     try {
-      if (currentMode === 'random') {
+      if (currentMode === 'passphrase') {
+        res = await fetch('/generate/passphrase', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ words: _wordCount, separator: _separator }),
+          signal:  controller.signal,
+        });
+      } else if (currentMode === 'random') {
         res = await fetch('/generate/random', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -116,7 +151,6 @@ async function generate() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || `Ошибка сервера: ${res.status}`);
 
-
     showResult(data, domain);
 
   } catch (e) {
@@ -125,20 +159,27 @@ async function generate() {
     btn.disabled          = false;
     spinner.style.display = 'none';
     btnIcon.style.display = 'block';
-    btnText.textContent   = 'Сгенерировать пароль';
+    btnText.textContent   = currentMode === 'passphrase' ? 'Сгенерировать фразу' : 'Сгенерировать пароль';
   }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
 
 function showResult(data, domain) {
-  document.getElementById('result-label').textContent =
-    currentMode === 'random' ? 'Случайный пароль' : `Пароль для ${domain}`;
-
-  document.getElementById('result-password').textContent = data.password;
-  document.getElementById('meta-length').textContent     = data.length;
-  document.getElementById('meta-charset').textContent    = data.charset_size;
-  document.getElementById('meta-entropy').textContent    = data.entropy_bits;
+  if (currentMode === 'passphrase') {
+    document.getElementById('result-label').textContent    = 'Кодовая фраза';
+    document.getElementById('result-password').textContent = data.passphrase;
+    document.getElementById('meta-length').textContent     = data.word_count + ' сл.';
+    document.getElementById('meta-charset').textContent    = '—';
+    document.getElementById('meta-entropy').textContent    = data.entropy_bits;
+  } else {
+    document.getElementById('result-label').textContent =
+      currentMode === 'random' ? 'Случайный пароль' : `Пароль для ${domain}`;
+    document.getElementById('result-password').textContent = data.password;
+    document.getElementById('meta-length').textContent     = data.length;
+    document.getElementById('meta-charset').textContent    = data.charset_size;
+    document.getElementById('meta-entropy').textContent    = data.entropy_bits;
+  }
 
   document.getElementById('result').classList.add('visible');
 

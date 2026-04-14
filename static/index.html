@@ -72,6 +72,30 @@
           </svg>
           Случайный
         </button>
+        <button class="mode-btn" id="mode-phrase" onclick="setMode('passphrase')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          Кодовая фраза
+        </button>
+      </div>
+
+      <!-- Passphrase options -->
+      <div class="field collapsible hidden" id="phrase-field">
+        <label>Количество слов</label>
+        <div class="sep-btns" id="word-count-btns">
+          <button class="sep-btn" onclick="setWordCount(3)">3</button>
+          <button class="sep-btn active" onclick="setWordCount(4)">4</button>
+          <button class="sep-btn" onclick="setWordCount(5)">5</button>
+          <button class="sep-btn" onclick="setWordCount(6)">6</button>
+        </div>
+        <label style="margin-top:14px">Разделитель</label>
+        <div class="sep-btns" id="sep-btns">
+          <button class="sep-btn active" onclick="setSep('-')">дефис  —</button>
+          <button class="sep-btn" onclick="setSep(' ')">пробел</button>
+          <button class="sep-btn" onclick="setSep('.')">точка  .</button>
+          <button class="sep-btn" onclick="setSep('_')">подчёркивание _</button>
+        </div>
       </div>
 
       <!-- Master password -->
