@@ -686,6 +686,7 @@ async def dashboard_stats(request: Request) -> JSONResponse:
         "top_domains":        st.get_top_domains(5),
         "uptime":             round(st.get_uptime()),
         "avg_ms":             avg_ms,
+        "daily":              st.get_daily(7),
     }
     return _dashboard_cors(JSONResponse(content=data))
 

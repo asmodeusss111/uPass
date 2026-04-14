@@ -7,6 +7,7 @@ import asyncio
 import httpx
 from collections import deque, defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime, timezone, timedelta
 from typing import Deque
 
 # ── Типы ─────────────────────────────────────────────────────────
@@ -47,6 +48,9 @@ _GEO_CACHE_MAX = 2000
 # Заблокированные IP (persistent до рестарта)
 _blocked_ips: set[str] = set()
 
+# Дневная статистика
+_daily: dict[str, int] = defaultdict(int)
+
 # Порог алерта — хитов rate limit за последний час
 RATE_ALERT_THRESHOLD = 10
 
@@ -57,6 +61,8 @@ def record_request(ip: str, domain: str, kind: str, response_ms: float = 0.0, ip
     _log.append(rec)
     _counters["total"] += 1
     _counters[kind]    += 1
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    _daily[today] += 1
     return rec
 
 
@@ -83,6 +89,14 @@ def get_recent(n: int = 50) -> list[RequestRecord]:
 
 def get_uptime() -> float:
     return time.time() - _start_time
+
+
+def get_daily(days: int = 7) -> list[dict]:
+    result = []
+    for i in range(days - 1, -1, -1):
+        day = (datetime.now(timezone.utc) - timedelta(days=i)).strftime('%Y-%m-%d')
+        result.append({'day': day, 'cnt': _daily.get(day, 0)})
+    return result
 
 
 def get_avg_response_ms() -> dict[str, float]:
