@@ -696,6 +696,19 @@ async def admin_server(request: Request) -> HTMLResponse:
     })
 
 
+# ── Правовые страницы ─────────────────────────────────────────────
+
+@app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
+async def privacy_page() -> HTMLResponse:
+    html = (TEMPLATES_DIR / "privacy.html").read_text(encoding="utf-8")
+    return HTMLResponse(content=html)
+
+@app.get("/terms", response_class=HTMLResponse, include_in_schema=False)
+async def terms_page() -> HTMLResponse:
+    html = (TEMPLATES_DIR / "terms.html").read_text(encoding="utf-8")
+    return HTMLResponse(content=html)
+
+
 # ── Публичные служебные файлы ─────────────────────────────────────
 
 @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Политика конфиденциальности — uPass</title>
+  <link rel="stylesheet" href="/static/css/styles.css" />
+  <style>
+    .legal-page { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; }
+    .legal-back { display: inline-flex; align-items: center; gap: 8px; color: var(--text-mid); font-size: 13px; text-decoration: none; margin-bottom: 40px; transition: color .2s; }
+    .legal-back:hover { color: var(--violet); }
+    .legal-hero { margin-bottom: 48px; }
+    .legal-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--violet-faint); border: 1px solid rgba(168,85,247,.2); border-radius: 99px; padding: 4px 12px; font-size: 11px; font-weight: 700; color: var(--violet); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 18px; }
+    .legal-hero h1 { font-size: clamp(26px,5vw,38px); font-weight: 800; background: linear-gradient(135deg, #e4e0f5 30%, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1.2; margin-bottom: 12px; }
+    .legal-date { font-size: 13px; color: var(--text-dim); }
+    .legal-section { margin-bottom: 36px; }
+    .legal-section h2 { font-size: 16px; font-weight: 700; color: var(--violet); margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+    .legal-section h2::before { content: ''; display: block; width: 3px; height: 16px; background: var(--violet); border-radius: 99px; }
+    .legal-section p, .legal-section li { font-size: 14px; color: var(--text-mid); line-height: 1.8; }
+    .legal-section ul { padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+    .legal-section li::marker { color: var(--violet); }
+    .legal-highlight { background: var(--violet-faint); border: 1px solid rgba(168,85,247,.15); border-radius: 10px; padding: 16px 20px; margin: 16px 0; }
+    .legal-highlight p { color: var(--text); font-size: 14px; }
+    .legal-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+    .legal-table th { text-align: left; padding: 8px 12px; background: var(--surface2); color: var(--violet); font-weight: 700; border-bottom: 1px solid var(--border); }
+    .legal-table td { padding: 8px 12px; color: var(--text-mid); border-bottom: 1px solid var(--border); vertical-align: top; }
+    .legal-table tr:last-child td { border-bottom: none; }
+    .chip { display: inline-block; background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.2); color: #4ade80; border-radius: 6px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
+    .chip.no { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.2); color: #f87171; }
+    .legal-footer-nav { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); }
+    .legal-footer-nav a { color: var(--text-mid); font-size: 13px; text-decoration: none; transition: color .2s; }
+    .legal-footer-nav a:hover { color: var(--violet); }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="legal-page">
+
+    <a href="/" class="legal-back">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      На главную
+    </a>
+
+    <div class="legal-hero">
+      <div class="legal-badge">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Политика конфиденциальности
+      </div>
+      <h1>Твои данные под защитой</h1>
+      <div class="legal-date">Последнее обновление: апрель 2025 г.</div>
+    </div>
+
+    <div class="legal-section">
+      <h2>Что такое uPass</h2>
+      <p>uPass — детерминированный генератор паролей. Ты вводишь главный пароль и домен, сервис вычисляет уникальный пароль через Argon2id и возвращает результат. Никаких аккаунтов, никакого хранилища паролей.</p>
+    </div>
+
+    <div class="legal-section">
+      <h2>Что мы собираем</h2>
+      <table class="legal-table">
+        <tr><th>Данные</th><th>Зачем</th><th>Храним?</th></tr>
+        <tr><td>IP-адрес (частично анонимизирован)</td><td>Защита от DDoS и злоупотреблений, rate limiting</td><td><span class="chip">Временно</span></td></tr>
+        <tr><td>Домен / сервис из запроса</td><td>Логи для диагностики</td><td><span class="chip">Временно</span></td></tr>
+        <tr><td>Временна́я метка запроса</td><td>Статистика и безопасность</td><td><span class="chip">Временно</span></td></tr>
+      </table>
+    </div>
+
+    <div class="legal-section">
+      <h2>Что мы НЕ собираем</h2>
+      <div class="legal-highlight">
+        <p>Главный пароль <strong>никогда не сохраняется</strong> — он существует в памяти только во время вычисления и немедленно уничтожается. Сгенерированные пароли также нигде не хранятся.</p>
+      </div>
+      <ul>
+        <li>Главный пароль не логируется и не передаётся третьим лицам</li>
+        <li>Результирующий пароль не сохраняется на сервере</li>
+        <li>Мы не используем cookies (кроме сессии для панели администратора)</li>
+        <li>Мы не используем сторонние трекеры, аналитику или рекламу</li>
+        <li>Мы не передаём данные третьим лицам</li>
+      </ul>
+    </div>
+
+    <div class="legal-section">
+      <h2>Как работает вычисление</h2>
+      <p>Все вычисления происходят на сервере в оперативной памяти. Алгоритм Argon2id использует твой главный пароль и хеш домена для детерминированного вывода. После отправки ответа все входные данные уничтожаются сборщиком мусора.</p>
+    </div>
+
+    <div class="legal-section">
+      <h2>Хранение данных</h2>
+      <p>Логи запросов хранятся в ограниченном скользящем окне исключительно для защиты от злоупотреблений. Они не содержат паролей и не используются в коммерческих целях.</p>
+    </div>
+
+    <div class="legal-section">
+      <h2>Безопасность</h2>
+      <ul>
+        <li>Соединение защищено HTTPS</li>
+        <li>Заголовки безопасности: CSP, HSTS, X-Frame-Options</li>
+        <li>Rate limiting на все API-эндпоинты</li>
+        <li>IP-блокировка при превышении лимитов</li>
+      </ul>
+    </div>
+
+    <div class="legal-section">
+      <h2>Твои права</h2>
+      <p>Поскольку мы не храним персональные данные (кроме частично анонимизированного IP в логах), запросить или удалить личные данные не требуется. Если у тебя есть вопросы — свяжись с нами через <a href="/.well-known/security.txt" style="color:var(--violet)">security.txt</a>.</p>
+    </div>
+
+    <div class="legal-section">
+      <h2>Изменения политики</h2>
+      <p>Мы можем обновлять эту страницу. Продолжение использования сервиса означает согласие с актуальной версией политики.</p>
+    </div>
+
+    <div class="legal-footer-nav">
+      <a href="/">← Главная</a>
+      <a href="/terms">Условия использования →</a>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
