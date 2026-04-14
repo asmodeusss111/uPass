@@ -691,6 +691,102 @@ async def dashboard_stats(request: Request) -> JSONResponse:
     return _dashboard_cors(JSONResponse(content=data))
 
 
+# ── Terminal API ──────────────────────────────────────────────────
+
+TERMINAL_KEY    = os.getenv("TERMINAL_KEY", "").strip()
+_term_sessions: dict[str, float] = {}   # token → expiry timestamp
+_TERM_TTL       = 3600                  # 1 час
+
+def _terminal_cors(response: JSONResponse) -> JSONResponse:
+    response.headers["Access-Control-Allow-Origin"]  = DASHBOARD_ORIGIN
+    response.headers["Access-Control-Allow-Headers"] = "X-Terminal-Key, X-Terminal-Token, Content-Type"
+    return response
+
+def _clean_sessions() -> None:
+    now = time.time()
+    for t in list(_term_sessions):
+        if _term_sessions[t] < now:
+            del _term_sessions[t]
+
+def _run_cmd(cmd: str) -> str:
+    """Выполняет разрешённую команду и возвращает вывод."""
+    import subprocess, shlex
+    parts = shlex.split(cmd)
+    allowed = {
+        'ps', 'free', 'df', 'uptime', 'whoami', 'hostname',
+        'ls', 'pwd', 'env', 'printenv', 'cat', 'head', 'tail',
+        'python3', 'pip', 'uname',
+    }
+    # Кастомные команды
+    if parts[0] == 'memory':
+        m = psutil.virtual_memory()
+        return f"Total:  {m.total//1024//1024} MB\nUsed:   {m.used//1024//1024} MB\nFree:   {m.available//1024//1024} MB\nUsage:  {m.percent}%"
+    if parts[0] == 'disk':
+        d = psutil.disk_usage('/')
+        return f"Total:  {d.total//1024//1024//1024} GB\nUsed:   {d.used//1024//1024//1024} GB\nFree:   {d.free//1024//1024//1024} GB\nUsage:  {d.percent}%"
+    if parts[0] == 'stats':
+        c = st.get_counters()
+        return f"Total requests: {c.get('total',0)}\nDeterministic:  {c.get('deterministic',0)}\nRandom:         {c.get('random',0)}\nBlocked IPs:    {len(st.get_blocked_ips())}"
+    if parts[0] == 'blocked':
+        ips = st.get_blocked_ips()
+        return '\n'.join(ips) if ips else 'Нет заблокированных IP'
+    if parts[0] not in allowed:
+        return f"Команда не разрешена: {parts[0]}\nДоступные: memory, disk, stats, blocked, ps, free, df, uptime, ls, pwd, env, uname"
+    # Блокируем опасные флаги
+    dangerous = ['--exec', '-e', '|', '>', '>>', '&&', ';', '$(', '`']
+    if any(d in cmd for d in dangerous):
+        return "Обнаружены опасные символы — команда заблокирована"
+    try:
+        result = subprocess.run(parts, capture_output=True, text=True, timeout=5,
+                                env={k: v for k, v in os.environ.items()
+                                     if k not in ('JWT_SECRET','TOTP_SECRET','DASHBOARD_API_KEY','TERMINAL_KEY','SECRET_KEY')})
+        return (result.stdout + result.stderr).strip() or '(нет вывода)'
+    except subprocess.TimeoutExpired:
+        return 'Превышено время выполнения (5с)'
+    except Exception as e:
+        return f'Ошибка: {e}'
+
+
+@app.options("/api/terminal/auth")
+@app.options("/api/terminal/exec")
+async def terminal_preflight() -> JSONResponse:
+    return _terminal_cors(JSONResponse(content={}))
+
+
+@app.post("/api/terminal/auth")
+async def terminal_auth(request: Request) -> JSONResponse:
+    if not TERMINAL_KEY or not TOTP_SECRET:
+        raise HTTPException(status_code=404)
+    body = await request.json()
+    key  = body.get("key", "")
+    code = str(body.get("code", ""))
+    if not hmac.compare_digest(key, TERMINAL_KEY):
+        raise HTTPException(status_code=401, detail="Неверный ключ")
+    totp = pyotp.TOTP(TOTP_SECRET)
+    if not totp.verify(code, valid_window=1):
+        raise HTTPException(status_code=401, detail="Неверный 2FA код")
+    _clean_sessions()
+    token = secrets.token_hex(32)
+    _term_sessions[token] = time.time() + _TERM_TTL
+    return _terminal_cors(JSONResponse(content={"token": token, "ttl": _TERM_TTL}))
+
+
+@app.post("/api/terminal/exec")
+async def terminal_exec(request: Request) -> JSONResponse:
+    if not TERMINAL_KEY:
+        raise HTTPException(status_code=404)
+    token = request.headers.get("X-Terminal-Token", "")
+    _clean_sessions()
+    if token not in _term_sessions:
+        raise HTTPException(status_code=401, detail="Сессия истекла — войдите снова")
+    body = await request.json()
+    cmd  = str(body.get("cmd", "")).strip()
+    if not cmd:
+        raise HTTPException(status_code=400, detail="Пустая команда")
+    output = _run_cmd(cmd)
+    return _terminal_cors(JSONResponse(content={"output": output}))
+
+
 # ── Error handlers ────────────────────────────────────────────────
 
 @app.exception_handler(HTTPException)
