@@ -977,34 +977,28 @@ def _run_cmd(cmd: str) -> str:
         # pip check (dependency conflicts)
         try:
             r = subprocess.run([_sys.executable, '-m', 'pip', 'check'],
-                               capture_output=True, text=True, timeout=15)
+                               capture_output=True, text=True, timeout=20)
             out = (r.stdout + r.stderr).strip()
             lines.append(f'[pip]     {"✓ " + out if r.returncode == 0 else "✗ " + out[:200]}')
         except Exception as e:
             lines.append(f'[pip]     ✗ {e}')
 
-        # pip-audit (CVE check)
+        # Import check
         try:
-            r = subprocess.run(['pip-audit', '--format', 'json', '--progress-spinner', 'off'],
-                               capture_output=True, text=True, timeout=60)
-            import json as _j
-            raw = r.stdout.strip()
-            if raw:
-                data = _j.loads(raw)
-                vulns = data.get('vulnerabilities', [])
-                lines.append(f'[audit]   {"✓ Уязвимостей нет" if not vulns else f"⚠ Найдено: {len(vulns)}"}')
-                for v in vulns[:5]:
-                    lines.append(f'  {v.get("name")} {v.get("version")} — {", ".join(a.get("id","?") for a in v.get("vulns",[]))}')
+            r = subprocess.run([_sys.executable, '-c', 'import main'],
+                               capture_output=True, text=True, timeout=15, cwd=root,
+                               env={k: v for k, v in os.environ.items()})
+            if r.returncode == 0:
+                lines.append('[import]  ✓ import main — ошибок нет')
             else:
-                lines.append(f'[audit]   ✗ {r.stderr.strip()[:200]}')
+                lines.append(f'[import]  ✗ {(r.stderr or r.stdout).strip()[:200]}')
         except Exception as e:
-            lines.append(f'[audit]   ✗ {e}')
+            lines.append(f'[import]  ✗ {e}')
 
         # Health check — use $PORT if set (Railway), fallback to 8000
         try:
-            import urllib.request as _ur
             _port = os.environ.get('PORT', '8000')
-            with _ur.urlopen(f'http://localhost:{_port}/health', timeout=3) as resp:
+            with urllib.request.urlopen(f'http://localhost:{_port}/health', timeout=3) as resp:
                 lines.append(f'[health]  {"✓ /health — 200 OK" if resp.status == 200 else f"✗ статус {resp.status}"}')
         except Exception:
             lines.append('[health]  ✗ /health — нет ответа')
