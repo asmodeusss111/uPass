@@ -47,6 +47,8 @@ ADMIN_WHITELIST: set[str] = {ip.strip() for ip in _wl_raw.split(",") if ip.strip
 
 RATE_ALERT_THRESHOLD = int(os.getenv("RATE_ALERT_THRESHOLD", "10"))
 HTTPS_ONLY           = os.getenv("HTTPS_ONLY",    "false").lower() == "true"
+# Cookie secure flag: always on when behind a reverse proxy (Railway/Render)
+_SECURE_COOKIES      = HTTPS_ONLY or bool(os.getenv("TRUSTED_PROXY","").strip()) or (os.getenv("TRUST_PROXY","false").lower() == "true")
 IP_ANONYMIZE         = os.getenv("IP_ANONYMIZE",  "false").lower() == "true"
 TRUSTED_PROXY        = os.getenv("TRUSTED_PROXY", "").strip()
 # TRUST_PROXY=true — доверять X-Forwarded-For без проверки IP прокси (для Railway/Render/etc.)
@@ -97,17 +99,17 @@ _rate_store: dict[str, list[float]] = defaultdict(list)
 
 def _check_rate(ip: str) -> None:
     now = time.monotonic()
-    # Чистим устаревшие записи если хранилище разросшееся
-    if len(_rate_store) > _RATE_STORE_MAX:
-        stale = [k for k, v in _rate_store.items()
-                 if not v or now - v[-1] > _RATE_WINDOW]
-        for k in stale:
-            del _rate_store[k]
     _rate_store[ip] = [t for t in _rate_store[ip] if now - t < _RATE_WINDOW]
     if len(_rate_store[ip]) >= _RATE_LIMIT:
         st.record_rate_hit(ip)
         raise HTTPException(status_code=429, detail="Слишком много запросов. Подождите минуту.")
     _rate_store[ip].append(now)
+    # Cleanup stale entries at a much lower threshold to prevent unbounded growth
+    if len(_rate_store) > 1000:
+        stale = [k for k, v in _rate_store.items()
+                 if not v or now - v[-1] > _RATE_WINDOW]
+        for k in stale:
+            del _rate_store[k]
 
 
 # ── 2FA lockout ───────────────────────────────────────────────────
@@ -307,8 +309,11 @@ def _get_ip(request: Request) -> str:
         xff = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
         if xff:
             try:
-                ipaddress.ip_address(xff)
-                return xff
+                addr = ipaddress.ip_address(xff)
+                # Reject private/loopback IPs from XFF — prevents IP-whitelist bypass
+                # via forged "X-Forwarded-For: 127.0.0.1" headers
+                if not addr.is_private and not addr.is_loopback:
+                    return xff
             except ValueError:
                 pass
     return client
@@ -480,15 +485,15 @@ async def admin_login(request: Request,
             pre_token = signer.dumps("pre-auth")
             resp = RedirectResponse("/admin/2fa", status_code=302)
             resp.set_cookie(PRE_AUTH_COOKIE, pre_token, httponly=True,
-                            samesite="strict", secure=HTTPS_ONLY, max_age=600)
+                            samesite="strict", secure=_SECURE_COOKIES, max_age=600)
             return resp
         token = signer.dumps("admin")
         resp  = RedirectResponse("/admin", status_code=302)
         resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="strict",
-                        secure=HTTPS_ONLY, max_age=86400)
+                        secure=_SECURE_COOKIES, max_age=86400)
         return resp
     _record_login_failure(ip)
-    log.warning("failed_login  ip=%s  user=%s", ip, username)
+    log.warning("failed_login  ip=%s", ip)
     remaining_attempts = _LOGIN_MAX_ATTEMPTS - len(_login_attempts[ip])
     return templates.TemplateResponse(request, "login.html", {
         "error":    "Неверный логин или пароль",
@@ -512,12 +517,18 @@ async def admin_2fa_verify(request: Request, code: str = Form(...)) -> HTMLRespo
     if not TOTP_SECRET or not _check_pre_auth(request):
         return RedirectResponse("/admin/login", status_code=302)
     ip = _get_ip(request)
-    _check_2fa_lockout(ip)
+    try:
+        _check_2fa_lockout(ip)
+    except HTTPException:
+        # Lockout reached — clear the pre-auth cookie so user returns to login
+        resp = RedirectResponse("/admin/login", status_code=302)
+        resp.delete_cookie(PRE_AUTH_COOKIE)
+        return resp
     if pyotp.TOTP(TOTP_SECRET).verify(code.strip(), valid_window=1):
         token = signer.dumps("admin")
         resp  = RedirectResponse("/admin", status_code=302)
         resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="strict",
-                        secure=HTTPS_ONLY, max_age=86400)
+                        secure=_SECURE_COOKIES, max_age=86400)
         resp.delete_cookie(PRE_AUTH_COOKIE)
         return resp
     _record_2fa_failure(ip)

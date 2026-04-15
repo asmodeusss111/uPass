@@ -10,6 +10,17 @@ const _popupDomain = _urlParams.get('domain') || '';
 const _popupSource = _urlParams.get('source') || '';
 const _isPopup     = !!_popupSource && !!window.opener;
 
+// Validate opener origin — prevents any site from intercepting the password via postMessage
+const _popupOrigin = (() => {
+  const raw = _urlParams.get('origin') || '';
+  try {
+    const u = new URL(raw);
+    if (['https:', 'http:', 'chrome-extension:', 'moz-extension:'].includes(u.protocol))
+      return u.origin;
+  } catch (_) {}
+  return '';
+})();
+
 if (_popupDomain) {
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('domain').value = _popupDomain;
@@ -195,7 +206,7 @@ function showResult(data, domain) {
 
 function sendToOpener() {
   const pwd = document.getElementById('result-password').textContent;
-  window.opener.postMessage({ type: 'upass_password', password: pwd }, '*');
+  window.opener.postMessage({ type: 'upass_password', password: pwd }, _popupOrigin || window.location.origin);
   const btn = document.getElementById('btn-copy');
   btn.classList.add('copied');
   btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Вставлено!`;
