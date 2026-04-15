@@ -3,6 +3,8 @@ uPass — Backend (FastAPI)
 Запуск: uvicorn main:app --reload
 """
 
+import asyncio
+import json
 import time
 import secrets
 import hmac
@@ -10,6 +12,7 @@ import logging
 import os
 import platform
 import ipaddress
+import urllib.request
 from collections import defaultdict
 from pathlib import Path
 from datetime import datetime, timezone
@@ -61,6 +64,7 @@ TOTP_SECRET          = os.getenv("TOTP_SECRET", "").strip()
 # DASHBOARD_API_KEY — ключ для доступа с личного дашборда
 DASHBOARD_API_KEY    = os.getenv("DASHBOARD_API_KEY", "").strip()
 DASHBOARD_ORIGIN     = os.getenv("DASHBOARD_ORIGIN", "https://asmodeusss111.github.io").strip()
+ABUSEIPDB_KEY        = os.getenv("ABUSEIPDB_KEY", "").strip()
 PRE_AUTH_COOKIE      = "upass_pre_auth"
 
 # ── Startup secrets validation ─────────────────────────────────────
@@ -102,6 +106,39 @@ def _get_qr_svg() -> str:
         svg  = buf.getvalue().decode()
         _qr_svg_cache = svg[svg.find("<svg"):]   # убираем XML-декларацию
     return _qr_svg_cache
+
+
+# ── IP reputation (AbuseIPDB) ─────────────────────────────────────
+_ip_rep_cache: dict[str, tuple[int, float]] = {}  # ip → (score, ts)
+_IP_REP_TTL       = 24 * 3600
+_IP_REP_THRESHOLD = 75  # block if score ≥ this
+
+
+def _fetch_ip_score(ip: str) -> int:
+    """Sync helper — runs inside a thread pool via asyncio.to_thread."""
+    url = f"https://api.abuseipdb.com/api/v2/check?ipAddress={ip}&maxAgeInDays=30"
+    req = urllib.request.Request(url, headers={"Key": ABUSEIPDB_KEY, "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=4) as resp:
+        data = json.loads(resp.read())
+    return data["data"]["abuseConfidenceScore"]
+
+
+async def _check_ip_reputation(ip: str) -> bool:
+    """Return True if IP is safe, False if it should be blocked."""
+    if not ABUSEIPDB_KEY or not ip or ip in ("::1", "127.0.0.1"):
+        return True
+    cached = _ip_rep_cache.get(ip)
+    if cached and (time.time() - cached[1]) < _IP_REP_TTL:
+        return cached[0] < _IP_REP_THRESHOLD
+    try:
+        score = await asyncio.to_thread(_fetch_ip_score, ip)
+        _ip_rep_cache[ip] = (score, time.time())
+        if score >= _IP_REP_THRESHOLD:
+            log.warning("Blocked malicious IP %s (AbuseIPDB score=%d)", ip, score)
+            return False
+        return True
+    except Exception:
+        return True  # fail open
 
 
 # ── Rate limiting ─────────────────────────────────────────────────
@@ -272,8 +309,19 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Добавляет X-Request-ID к каждому ответу для трассировки."""
+    async def dispatch(self, request: Request, call_next):
+        req_id = secrets.token_hex(8)
+        request.state.request_id = req_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = req_id
+        return response
+
+
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(BodySizeLimitMiddleware)
+app.add_middleware(RequestIDMiddleware)
 
 STATIC_DIR    = Path(__file__).parent / "static"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -492,6 +540,8 @@ async def admin_login(request: Request,
                       username: str = Form(...),
                       password: str = Form(...)) -> HTMLResponse:
     ip = _get_ip(request)
+    if not await _check_ip_reputation(ip):
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
     _check_login_lockout(ip)
     _check_rate(ip)
     user_ok = hmac.compare_digest(username, ADMIN_USER)
