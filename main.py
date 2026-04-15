@@ -767,9 +767,12 @@ def _dashboard_cors(response: JSONResponse) -> JSONResponse:
 async def dashboard_stats_preflight(request: Request) -> JSONResponse:
     if not DASHBOARD_API_KEY:
         raise HTTPException(status_code=404)
-    key = request.headers.get("X-Dashboard-Key", "")
-    if not hmac.compare_digest(key, DASHBOARD_API_KEY):
-        raise HTTPException(status_code=401)
+    # NOTE: browsers do NOT send custom headers in CORS preflight —
+    # only the GET handler checks X-Dashboard-Key.
+    # Here we only validate the Origin to limit which sites can even preflight.
+    origin = request.headers.get("origin", "")
+    if origin and origin != DASHBOARD_ORIGIN:
+        raise HTTPException(status_code=403)
     r = JSONResponse(content={})
     return _dashboard_cors(r)
 
