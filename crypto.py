@@ -6,7 +6,10 @@
 import hashlib
 import ctypes
 import os
+import logging
 from argon2.low_level import hash_secret_raw, Type
+
+_log = logging.getLogger("upass.crypto")
 
 # ─── Константы ────────────────────────────────────────────────────────────────
 
@@ -23,6 +26,10 @@ else:
         b"\xa6\x7b\xc3\xd0\xe4\x92\x61\x3f"
         b"\x28\xd7\x04\xae\x5c\x83\xf1\x69"
         b"\x0b\xe5\x37\xca\x91\x4d\x76\x2e"
+    )
+    _log.warning(
+        "PEPPER_HEX не задан — используется дефолтный pepper из исходного кода. "
+        "ОБЯЗАТЕЛЬНО задайте PEPPER_HEX в .env перед продакшн-деплоем!"
     )
 
 ARGON2_MEMORY   = 65536  # 64 MB
@@ -84,12 +91,25 @@ def _derive(master_buf: bytearray, domain: str) -> bytearray:
 
 
 def _to_password(h: bytearray, length: int) -> str:
-    n   = len(h)
+    # Rejection sampling: discard values that would cause modulo bias.
+    # With CHARSET_LEN=93, threshold=65(536//93)*93=65(riate)=65*93... actually:
+    # largest multiple of 93 fitting in 65536 → (65536 // 93) * 93 = 704 * 93 = 65472
+    _LIMIT = (65536 // CHARSET_LEN) * CHARSET_LEN  # 65472 for CHARSET_LEN=93
+    pool   = bytearray(h)
+    # Expand pool using SHA-256 chaining if needed (deterministic, same input→same output)
+    while len(pool) < length * 6:
+        import hashlib
+        pool += bytearray(hashlib.sha256(bytes(pool[-64:])).digest())
     pwd = []
-    for i in range(length):
-        # 16-бит значение → снижает modulo bias
-        val = h[i % n] | (h[(i + 1) % n] << 8)
-        pwd.append(CHARSET[val % CHARSET_LEN])
+    idx = 0
+    while len(pwd) < length:
+        if idx + 1 >= len(pool):
+            # shouldn't happen with generous pool expansion
+            break
+        val = pool[idx] | (pool[idx + 1] << 8)
+        idx += 2
+        if val < _LIMIT:   # accept only unbiased range
+            pwd.append(CHARSET[val % CHARSET_LEN])
     return "".join(pwd)
 
 

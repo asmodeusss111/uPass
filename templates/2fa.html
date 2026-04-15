@@ -245,8 +245,11 @@
     <div class="setup-section" id="setup-section">
       <div class="qr-wrap">{{ qr_svg | safe }}</div>
       <div class="secret-label">Или введите ключ вручную в приложении:</div>
-      <div class="secret-key" onclick="copySecret(this)">{{ totp_secret }}</div>
-      <div class="copy-hint" id="copy-hint">Нажми чтобы скопировать</div>
+      <div class="secret-key" id="secret-key" onclick="copySecret(this)"
+           data-loaded="false" style="color:var(--text-dim);letter-spacing:normal">
+        Нажмите чтобы показать ключ
+      </div>
+      <div class="copy-hint" id="copy-hint">Ключ не хранится в HTML — загружается по запросу</div>
     </div>
 
     <a href="/admin/login" class="back-link">← Назад ко входу</a>
@@ -269,7 +272,19 @@
       chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
     }
 
-    function copySecret(el) {
+    async function copySecret(el) {
+      // Load secret on first click — not pre-rendered in HTML source
+      if (el.dataset.loaded !== 'true') {
+        try {
+          const r = await fetch('/api/admin/totp-secret');
+          if (!r.ok) { document.getElementById('copy-hint').textContent = 'Ошибка загрузки'; return; }
+          const d = await r.json();
+          el.textContent = d.secret;
+          el.style.color = '';
+          el.style.letterSpacing = '';
+          el.dataset.loaded = 'true';
+        } catch { document.getElementById('copy-hint').textContent = 'Ошибка сети'; return; }
+      }
       navigator.clipboard.writeText(el.textContent.trim()).then(() => {
         const hint = document.getElementById('copy-hint');
         hint.textContent = 'Скопировано!';

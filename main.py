@@ -540,6 +540,17 @@ async def admin_2fa_verify(request: Request, code: str = Form(...)) -> HTMLRespo
     })
 
 
+@app.get("/api/admin/totp-secret")
+async def admin_totp_secret(request: Request) -> JSONResponse:
+    """Возвращает TOTP_SECRET только для залогиненного admin с pre-auth cookie.
+    Секрет не рендерится в HTML — загружается по требованию."""
+    if not TOTP_SECRET:
+        raise HTTPException(status_code=404)
+    if not _check_pre_auth(request) and _get_session(request) != "admin":
+        raise HTTPException(status_code=401)
+    return JSONResponse(content={"secret": TOTP_SECRET})
+
+
 @app.get("/admin/logout")
 async def admin_logout() -> RedirectResponse:
     resp = RedirectResponse("/admin/login", status_code=302)
@@ -753,7 +764,12 @@ def _dashboard_cors(response: JSONResponse) -> JSONResponse:
 
 
 @app.options("/api/dashboard/stats")
-async def dashboard_stats_preflight() -> JSONResponse:
+async def dashboard_stats_preflight(request: Request) -> JSONResponse:
+    if not DASHBOARD_API_KEY:
+        raise HTTPException(status_code=404)
+    key = request.headers.get("X-Dashboard-Key", "")
+    if not hmac.compare_digest(key, DASHBOARD_API_KEY):
+        raise HTTPException(status_code=401)
     r = JSONResponse(content={})
     return _dashboard_cors(r)
 
@@ -928,8 +944,8 @@ async def terminal_exec(request: Request) -> JSONResponse:
 
 @app.exception_handler(HTTPException)
 async def http_handler(request: Request, exc: HTTPException) -> JSONResponse | RedirectResponse:
-    if exc.status_code == 303:
-        return RedirectResponse(exc.headers["Location"], status_code=302)
+    if exc.status_code in (301, 302, 303, 307, 308):
+        return RedirectResponse(exc.headers["Location"], status_code=exc.status_code)
     if exc.status_code == 404 and not request.url.path.startswith("/api/"):
         return templates.TemplateResponse("404.html", {"request": request, "path": request.url.path}, status_code=404)
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
