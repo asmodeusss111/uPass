@@ -62,6 +62,20 @@ TOTP_SECRET          = os.getenv("TOTP_SECRET", "").strip()
 DASHBOARD_API_KEY    = os.getenv("DASHBOARD_API_KEY", "").strip()
 DASHBOARD_ORIGIN     = os.getenv("DASHBOARD_ORIGIN", "https://asmodeusss111.github.io").strip()
 PRE_AUTH_COOKIE      = "upass_pre_auth"
+
+# ── Startup secrets validation ─────────────────────────────────────
+# Warn loudly if running with insecure defaults behind a proxy (= production)
+if _SECURE_COOKIES:
+    _insecure: list[str] = []
+    if SECRET_KEY   == "dev-secret-key":  _insecure.append("SECRET_KEY")
+    if ADMIN_PASS   == "changeme123":     _insecure.append("ADMIN_PASSWORD")
+    if ADMIN_USER   == "admin":           _insecure.append("ADMIN_USERNAME")
+    if not TOTP_SECRET:                   _insecure.append("TOTP_SECRET (2FA отключена!)")
+    if not DASHBOARD_API_KEY:             _insecure.append("DASHBOARD_API_KEY")
+    if _insecure:
+        import sys
+        print(f"[SECURITY] КРИТИЧНО: следующие переменные не заданы или дефолтные: {', '.join(_insecure)}", file=sys.stderr)
+
 _tz_name = os.getenv("TZ", "UTC")
 try:
     APP_TZ = ZoneInfo(_tz_name)
@@ -236,7 +250,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "form-action 'self'; "
             "frame-ancestors 'none'"
         )
-        if HTTPS_ONLY:
+        h["X-Permitted-Cross-Domain-Policies"] = "none"
+        # HSTS: enable when explicitly HTTPS or behind a reverse proxy (Railway/Render)
+        is_https = HTTPS_ONLY or _SECURE_COOKIES
+        if is_https:
             h["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
         return response
 
@@ -732,6 +749,11 @@ async def terms_page() -> HTMLResponse:
 
 
 # ── Публичные служебные файлы ─────────────────────────────────────
+
+@app.get("/health", include_in_schema=False)
+async def health() -> JSONResponse:
+    return JSONResponse(content={"status": "ok"})
+
 
 @app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
 async def robots_txt() -> str:
