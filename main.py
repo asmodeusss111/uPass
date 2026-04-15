@@ -995,8 +995,8 @@ def _run_cmd(cmd: str) -> str:
         # Health check — use $PORT if set (Railway), fallback to 8000
         try:
             _port = os.environ.get('PORT', '8000')
-            with urllib.request.urlopen(f'http://localhost:{_port}/health', timeout=3) as resp:
-                lines.append(f'[health]  {"✓ /health — 200 OK" if resp.status == 200 else f"✗ статус {resp.status}"}')
+            with urllib.request.urlopen(f'http://127.0.0.1:{_port}/health', timeout=6) as resp:
+                lines.append(f'[health]  {"✓ /health — отвечает 200 OK" if resp.status == 200 else f"✗ статус {resp.status}"}')
         except Exception:
             lines.append('[health]  ✗ /health — нет ответа')
 
