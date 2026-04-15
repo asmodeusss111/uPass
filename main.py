@@ -1000,10 +1000,11 @@ def _run_cmd(cmd: str) -> str:
         except Exception as e:
             lines.append(f'[audit]   ✗ {e}')
 
-        # Health check
+        # Health check — use $PORT if set (Railway), fallback to 8000
         try:
             import urllib.request as _ur
-            with _ur.urlopen('http://localhost:8000/health', timeout=3) as resp:
+            _port = os.environ.get('PORT', '8000')
+            with _ur.urlopen(f'http://localhost:{_port}/health', timeout=3) as resp:
                 lines.append(f'[health]  {"✓ /health — 200 OK" if resp.status == 200 else f"✗ статус {resp.status}"}')
         except Exception:
             lines.append('[health]  ✗ /health — нет ответа')
