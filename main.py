@@ -958,8 +958,59 @@ def _run_cmd(cmd: str) -> str:
             return 'Превышено время выполнения (60с)'
         except Exception as e:
             return f'Ошибка pip-audit: {e}'
+    if parts[0] == 'scan':
+        import subprocess, sys as _sys
+        lines = ['=== uPass Static Analysis ===\n']
+        root = str(Path(__file__).parent)
+
+        # Syntax check
+        try:
+            r = subprocess.run([_sys.executable, '-m', 'py_compile', 'main.py', 'crypto.py'],
+                               capture_output=True, text=True, timeout=10, cwd=root)
+            if r.returncode == 0:
+                lines.append('[syntax]  ✓ main.py, crypto.py — ошибок нет')
+            else:
+                lines.append(f'[syntax]  ✗ {r.stderr.strip()[:300]}')
+        except Exception as e:
+            lines.append(f'[syntax]  ✗ {e}')
+
+        # pip check (dependency conflicts)
+        try:
+            r = subprocess.run([_sys.executable, '-m', 'pip', 'check'],
+                               capture_output=True, text=True, timeout=15)
+            out = (r.stdout + r.stderr).strip()
+            lines.append(f'[pip]     {"✓ " + out if r.returncode == 0 else "✗ " + out[:200]}')
+        except Exception as e:
+            lines.append(f'[pip]     ✗ {e}')
+
+        # pip-audit (CVE check)
+        try:
+            r = subprocess.run(['pip-audit', '--format', 'json', '--progress-spinner', 'off'],
+                               capture_output=True, text=True, timeout=60)
+            import json as _j
+            raw = r.stdout.strip()
+            if raw:
+                data = _j.loads(raw)
+                vulns = data.get('vulnerabilities', [])
+                lines.append(f'[audit]   {"✓ Уязвимостей нет" if not vulns else f"⚠ Найдено: {len(vulns)}"}')
+                for v in vulns[:5]:
+                    lines.append(f'  {v.get("name")} {v.get("version")} — {", ".join(a.get("id","?") for a in v.get("vulns",[]))}')
+            else:
+                lines.append(f'[audit]   ✗ {r.stderr.strip()[:200]}')
+        except Exception as e:
+            lines.append(f'[audit]   ✗ {e}')
+
+        # Health check
+        try:
+            import urllib.request as _ur
+            with _ur.urlopen('http://localhost:8000/health', timeout=3) as resp:
+                lines.append(f'[health]  {"✓ /health — 200 OK" if resp.status == 200 else f"✗ статус {resp.status}"}')
+        except Exception:
+            lines.append('[health]  ✗ /health — нет ответа')
+
+        return '\n'.join(lines)
     if parts[0] not in allowed:
-        return f"Команда не разрешена: {parts[0]}\nДоступные: memory, disk, stats, blocked, audit, ps, free, df, uptime, ls, pwd, env, uname"
+        return f"Команда не разрешена: {parts[0]}\nДоступные: memory, disk, stats, blocked, audit, scan, ps, free, df, uptime, ls, pwd, env, uname"
     # Блокируем опасные флаги
     dangerous = ['--exec', '-e', '|', '>', '>>', '&&', ';', '$(', '`']
     if any(d in cmd for d in dangerous):
