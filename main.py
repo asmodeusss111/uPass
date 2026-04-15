@@ -809,17 +809,14 @@ async def health() -> JSONResponse:
 async def robots_txt() -> str:
     return (
         "User-agent: *\n"
-        "Disallow: /admin\n"
-        "Disallow: /admin/\n"
-        "Disallow: /generate\n"
-        "Disallow: /generate/\n"
+        "Disallow:\n"
     )
 
 
 @app.get("/.well-known/security.txt", response_class=PlainTextResponse, include_in_schema=False)
 async def security_txt() -> str:
     return (
-        f"Contact: {SECURITY_CONTACT}\n"
+        "Contact: mailto:starsofficialbrawl@gmail.com\n"
         "Preferred-Languages: ru, en\n"
         "Encryption: none\n"
         "Policy: Пожалуйста, сообщайте об уязвимостях ответственно.\n"
