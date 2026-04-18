@@ -92,6 +92,35 @@ signer = URLSafeTimedSerializer(SECRET_KEY)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 log = logging.getLogger("upass")
 
+# ── Security event logging ────────────────────────────────────────
+_sec_log = logging.getLogger("upass.security")
+
+def log_security_event(event: str, ip: str = "-", detail: str = "") -> None:
+    _sec_log.warning("SECURITY event=%s ip=%s %s", event, ip, detail)
+
+# ── pip audit at startup ──────────────────────────────────────────
+def _run_pip_audit() -> None:
+    import subprocess, sys
+    try:
+        r = subprocess.run(
+            [sys.executable, "-m", "pip_audit", "--format=json", "-q"],
+            capture_output=True, text=True, timeout=60
+        )
+        if r.returncode == 0:
+            log.info("pip-audit: no known vulnerabilities")
+        else:
+            import json as _json
+            try:
+                vulns = _json.loads(r.stdout)
+                count = sum(len(d.get("vulns", [])) for d in vulns.get("dependencies", []))
+                _sec_log.warning("SECURITY pip-audit: %d vulnerabilities found! Run: pip-audit --fix", count)
+            except Exception:
+                _sec_log.warning("SECURITY pip-audit: vulnerabilities found — %s", r.stdout[:300])
+    except Exception as e:
+        log.info("pip-audit unavailable: %s", e)
+
+_run_pip_audit()
+
 # ── QR-код для 2FA (кешируется при первом запросе) ────────────────
 _qr_svg_cache: str = ""
 
@@ -153,6 +182,7 @@ def _check_rate(ip: str) -> None:
     _rate_store[ip] = [t for t in _rate_store[ip] if now - t < _RATE_WINDOW]
     if len(_rate_store[ip]) >= _RATE_LIMIT:
         st.record_rate_hit(ip)
+        log_security_event("RATE_LIMIT", ip, f"count={len(_rate_store[ip])}")
         raise HTTPException(status_code=429, detail="Слишком много запросов. Подождите минуту.")
     _rate_store[ip].append(now)
     # Cleanup stale entries at a much lower threshold to prevent unbounded growth
@@ -173,11 +203,13 @@ def _check_2fa_lockout(ip: str) -> None:
     now = time.time()
     _2fa_attempts[ip] = [t for t in _2fa_attempts[ip] if now - t < _2FA_WINDOW]
     if len(_2fa_attempts[ip]) >= _2FA_MAX:
+        log_security_event("2FA_LOCKOUT", ip, f"attempts={len(_2fa_attempts[ip])}")
         raise HTTPException(status_code=429, detail="Слишком много попыток. Подождите 5 минут.")
 
 
 def _record_2fa_failure(ip: str) -> None:
     _2fa_attempts[ip].append(time.time())
+    log_security_event("2FA_FAILURE", ip, f"attempts={len(_2fa_attempts[ip])}")
 
 
 # ── Login lockout ──────────────────────────────────────────────────
@@ -202,6 +234,7 @@ def _check_login_lockout(ip: str) -> None:
 def _record_login_failure(ip: str) -> None:
     _login_attempts[ip].append(time.time())
     st.record_failed_login(ip)
+    log_security_event("LOGIN_FAILURE", ip, f"attempts={len(_login_attempts[ip])}")
 
 
 # ── Схемы ─────────────────────────────────────────────────────────
